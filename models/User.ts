@@ -25,7 +25,7 @@ const UserSchema = new Schema(
             type: String,
             enum: ["instructor", "attendee"],
             required: true,
-            default: "attendee",
+            default: "instructor",
         },
         city: {
             type: String,
@@ -34,13 +34,13 @@ const UserSchema = new Schema(
         },
         verified: {
             type: Boolean,
-            default: false,
+            default: true,
         },
         bio: {
             type: String,
-            required: function (this: { role: string }): boolean {
-                return this.role === "instructor";
-            },
+            // required: function (this: { role: string }): boolean {
+            //     return this.role === "instructor";
+            // },
             maxlength: 400,
         },
         profileImage: {
@@ -51,5 +51,5 @@ const UserSchema = new Schema(
     { timestamps: true }
 );
 
-const User = models.user || model("User", UserSchema);
+const User = models.User || model("User", UserSchema);
 export default User;
