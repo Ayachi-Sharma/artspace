@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { CITIES } from "@/lib/constants";
 
-const CITIES = ["Jaipur", "Delhi", "Mumbai", "Bangalore", "Pune"]; // adjust to your launch cities
+// const CITIES = ["Jaipur", "Delhi", "Mumbai", "Bangalore", "Pune"]; // adjust to your launch cities
 
 export default function CitySelector() {
   const { data: session, update } = useSession();

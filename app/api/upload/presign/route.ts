@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   });
 
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 });
-  const publicUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  const publicUrl = `https://s3.${process.env.AWS_REGION}.amazonaws.com/${process.env.AWS_S3_BUCKET_NAME}/${key}`;
 
   return Response.json({ uploadUrl, publicUrl });
 }
