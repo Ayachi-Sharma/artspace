@@ -1,9 +1,7 @@
 import mongoose, { Schema, models, model } from "mongoose";
 
-// ASSUMPTION: adjust the import path/name if your workshop/user models live
-// elsewhere or use a different id type.
-
 export type BookingStatus = "pending" | "confirmed" | "failed" | "cancelled";
+export type RefundStatus = "processing" | "processed" | "failed";
 
 export interface IBooking {
   attendeeId: mongoose.Types.ObjectId;
@@ -13,6 +11,9 @@ export interface IBooking {
   razorpayOrderId: string;
   razorpayPaymentId?: string;
   razorpaySignature?: string;
+  razorpayRefundId?: string;
+  refundStatus?: RefundStatus;
+  cancelledAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,13 +32,14 @@ const BookingSchema = new Schema<IBooking>(
     razorpayOrderId: { type: String, required: true, unique: true },
     razorpayPaymentId: { type: String },
     razorpaySignature: { type: String },
+    razorpayRefundId: { type: String },
+    refundStatus: {
+      type: String,
+      enum: ["processing", "processed", "failed"],
+    },
+    cancelledAt: { type: Date },
   },
   { timestamps: true }
 );
-
-// Prevent the same user from holding multiple *pending* bookings for the
-// same workshop indefinitely (stale carts). Not a hard DB constraint —
-// enforced in the create-order route instead, since partial unique indexes
-// on a single status value are awkward across mongoose versions.
 
 export default models.Booking || model<IBooking>("Booking", BookingSchema);

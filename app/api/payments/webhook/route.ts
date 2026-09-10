@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import Workshop from "@/models/Workshop";
 import Booking from "@/models/Booking";
+import Payout from "@/models/Payout";
 import { attemptRefundWithRetry } from "@/lib/refund";
 
 // Configure this exact URL + RAZORPAY_WEBHOOK_SECRET in the Razorpay
@@ -12,6 +13,8 @@ import { attemptRefundWithRetry } from "@/lib/refund";
 //   - refund.failed     (confirms a refund was rejected on Razorpay's side,
 //                        as opposed to our API call itself erroring out —
 //                        see lib/refund.ts for that path)
+//   - payout.processed / payout.failed / payout.reversed
+//                       (RazorpayX instructor payout status updates)
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -42,6 +45,15 @@ export async function POST(req: NextRequest) {
       break;
     case "refund.failed":
       await handleRefundStatusUpdate(event, "failed");
+      break;
+    case "payout.processed":
+      await handlePayoutStatusUpdate(event, "processed");
+      break;
+    case "payout.failed":
+      await handlePayoutStatusUpdate(event, "failed");
+      break;
+    case "payout.reversed":
+      await handlePayoutStatusUpdate(event, "reversed");
       break;
     // Unhandled event types fall through — Razorpay sends many more than
     // we care about (order.paid, payment.failed, etc). No action needed.
@@ -132,4 +144,35 @@ async function handleRefundStatusUpdate(event: any, finalStatus: "processed" | "
       attempts: 1,
     });
   }
+}
+
+// Confirms the final state of an instructor payout. "processed" means the
+// money actually landed in their bank account; "failed" means it never went
+// out (e.g. bad account details); "reversed" means it was sent but bounced
+// back (e.g. account closed) — in both failure cases the instructor's
+// available balance should show the money as theirs again, which happens
+// automatically since getInstructorBalance() excludes failed/reversed
+// payouts from totalPaidOut.
+async function handlePayoutStatusUpdate(
+  event: any,
+  finalStatus: "processed" | "failed" | "reversed"
+) {
+  const payoutEntity = event.payload?.payout?.entity;
+  const razorpayPayoutId = payoutEntity?.id;
+
+  if (!razorpayPayoutId) return;
+
+  const payout = await Payout.findOne({ razorpayPayoutId });
+  if (!payout) return; // payout not initiated by us / not found — nothing to update
+
+  // Idempotent — a duplicate webhook delivery shouldn't overwrite an
+  // already-settled status.
+  if (payout.status === finalStatus) return;
+
+  payout.status = finalStatus;
+  if (finalStatus === "failed" || finalStatus === "reversed") {
+    payout.failureReason =
+      payoutEntity?.failure_reason || `Payout ${finalStatus} by RazorpayX`;
+  }
+  await payout.save();
 }

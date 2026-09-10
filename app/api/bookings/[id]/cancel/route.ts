@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // ASSUMPTION: see other routes
+import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Workshop from "@/models/Workshop";
 import Booking from "@/models/Booking";
@@ -20,9 +20,11 @@ const CANCELLATION_CUTOFF_HOURS = 24;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -30,7 +32,7 @@ export async function POST(
 
     await connectDB();
 
-    const booking = await Booking.findById(params.id);
+    const booking = await Booking.findById(id);
     if (!booking) {
       return NextResponse.json({ error: "Booking not found" }, { status: 404 });
     }
@@ -73,8 +75,6 @@ export async function POST(
 
     const wasConfirmed = booking.status === "confirmed";
 
-    // Release the seat first. Only decrement if it was actually confirmed
-    // (a "pending" booking never incremented seatsBooked in the first place).
     if (wasConfirmed) {
       await Workshop.findOneAndUpdate(
         { _id: booking.workshopId, $expr: { $gt: ["$seatsBooked", 0] } },
@@ -82,7 +82,6 @@ export async function POST(
       );
     }
 
-    // Refund only if a payment actually captured.
     if (wasConfirmed && booking.razorpayPaymentId) {
       const result = await attemptRefundWithRetry({
         bookingId: String(booking._id),
@@ -93,12 +92,9 @@ export async function POST(
 
       if (result.success) {
         booking.razorpayRefundId = result.refundId;
-        booking.refundStatus = "processing"; // webhook confirms "processed" later
+        booking.refundStatus = "processing";
       } else {
         booking.refundStatus = "failed";
-        // Seat has already been released above even if the refund failed —
-        // don't block the cancellation on Razorpay being down. A
-        // FailedRefund record was created for manual follow-up.
       }
     }
 

@@ -1,3 +1,4 @@
+import "./globals.css";
 import Providers from "./providers";
 import Header from "@/app/components/Header";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
