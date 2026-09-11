@@ -1,3 +1,4 @@
+import { CITIES } from "@/lib/constants";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
@@ -10,7 +11,7 @@ export async function PATCH(req: Request) {
   }
 
   const { city } = await req.json();
-  if (!city || typeof city !== "string") {
+  if (!city || typeof city !== "string" || !(CITIES as readonly string[]).includes(city)) {
     return Response.json({ error: "Valid city required" }, { status: 400 });
   }
 

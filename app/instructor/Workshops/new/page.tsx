@@ -29,25 +29,35 @@ export default function NewWorkshopPage() {
   if (session?.user?.role !== "instructor") return <p>Only instructors can create workshops.</p>;
 
   const uploadImages = async (): Promise<string[]> => {
-    const urls: string[] = [];
-    for (const file of imageFiles) {
-      const presignRes = await fetch("/api/upload/presign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileType: file.type }),
-      });
-      const { uploadUrl, publicUrl } = await presignRes.json();
+  const urls: string[] = [];
+  for (const file of imageFiles) {
+    const presignRes = await fetch("/api/upload/presign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileType: file.type }),
+    });
 
-      await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-
-      urls.push(publicUrl);
+    const presignData = await presignRes.json();
+    if (!presignRes.ok) {
+      throw new Error(presignData.error || `Could not get upload URL for ${file.name}`);
     }
-    return urls;
-  };
+
+    const { uploadUrl, publicUrl } = presignData;
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(`Failed to upload ${file.name} to storage`);
+    }
+
+    urls.push(publicUrl);
+  }
+  return urls;
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

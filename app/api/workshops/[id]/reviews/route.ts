@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth"; // ASSUMPTION: see other routes
-import {connectDB} from "@/lib/db"; // ASSUMPTION: see other routes
+import { authOptions } from "@/lib/auth";
+import { connectDB } from "@/lib/db";
 import Booking from "@/models/Booking";
 import Review from "@/models/Review";
-import "@/models/User"; // registers User schema for populate()
+import "@/models/User";
 
-// GET /api/workshops/[id]/reviews
-// Public. Returns the review list plus an average rating + count. No auth
-// needed to read reviews.
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await connectDB();
 
-    const reviews = await Review.find({ workshopId: params.id })
+    const reviews = await Review.find({ workshopId: id })
       .sort({ createdAt: -1 })
       .populate("attendeeId", "name")
       .lean();
@@ -34,15 +32,13 @@ export async function GET(
   }
 }
 
-// POST /api/workshops/[id]/reviews
-// Attendee-only. Requires a *confirmed* booking for this workshop. One
-// review per attendee per workshop (enforced by the unique index on the
-// model — a duplicate attempt returns 409).
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
@@ -62,9 +58,8 @@ export async function POST(
 
     await connectDB();
 
-    // Must have actually attended (confirmed booking) to review.
     const confirmedBooking = await Booking.findOne({
-      workshopId: params.id,
+      workshopId: id,
       attendeeId: session.user.id,
       status: "confirmed",
     });
@@ -78,14 +73,13 @@ export async function POST(
 
     try {
       const review = await Review.create({
-        workshopId: params.id,
+        workshopId: id,
         attendeeId: session.user.id,
         rating,
         comment: comment?.trim() || undefined,
       });
       return NextResponse.json({ review }, { status: 201 });
     } catch (err: any) {
-      // Mongo duplicate key error from the unique (workshopId, attendeeId) index.
       if (err?.code === 11000) {
         return NextResponse.json({ error: "You've already reviewed this workshop" }, { status: 409 });
       }

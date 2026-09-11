@@ -5,42 +5,54 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { CITIES } from "@/lib/constants";
 
-// const CITIES = ["Jaipur", "Delhi", "Mumbai", "Bangalore", "Pune"]; // adjust to your launch cities
-
 export default function CitySelector() {
   const { data: session, update } = useSession();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
 
   const handleChange = async (city: string) => {
     setLoading(true);
-    const res = await fetch("/api/user/city", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ city }),
-    });
+    setError("");
 
-    if (res.ok) {
+    try {
+      const res = await fetch("/api/user/city", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Could not update city");
+      }
+
       await update({ city }); // triggers jwt callback to refresh token with new city
       router.refresh(); // re-fetches server components with updated session
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <select
-      value={session?.user?.city || ""}
-      onChange={(e) => handleChange(e.target.value)}
-      disabled={loading}
-    >
-      <option value="" disabled>
-        Select city
-      </option>
-      {CITIES.map((c) => (
-        <option key={c} value={c}>
-          {c}
+    <div>
+      <select
+        value={session?.user?.city || ""}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={loading}
+      >
+        <option value="" disabled>
+          Select city
         </option>
-      ))}
-    </select>
+        {CITIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+      {error && <p style={{ color: "red", fontSize: "0.75rem", margin: "0.25rem 0 0" }}>{error}</p>}
+    </div>
   );
 }

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import Workshop from "@/models/Workshop";
+import "@/models/User"; // registers User schema for populate()
 
 export async function GET(
   req: Request,
@@ -10,7 +11,7 @@ export async function GET(
   await connectDB();
   const { id } = await params;
 
-  const workshop = await Workshop.findById(id);
+  const workshop = await Workshop.findById(id).populate("instructorId", "name bio");
   if (!workshop) {
     return Response.json({ error: "Workshop not found" }, { status: 404 });
   }

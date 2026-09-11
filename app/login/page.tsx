@@ -24,8 +24,12 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res?.error) {
-      setError(res.error);
-    } else {
+  setError(
+    res.error === "CredentialsSignin"
+      ? "Invalid email or password"
+      : "Something went wrong. Please try again."
+  );
+} else {
       router.push("/workshops"); // change to wherever you want post-login
     }
   };
